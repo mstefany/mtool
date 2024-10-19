@@ -20,20 +20,6 @@ DB_FILE_PATH = "storage.db"
 
 TELEPHONE_NUMBER_REGEX = r"^\+?\d{9,}$"
 
-SMS_PROTOCOL = {0: "SMS"}
-
-SMS_TYPE = {
-    1: "Received",
-    2: "Sent",
-    3: "Draft",
-    4: "Outbox",
-    5: "Failed",
-    6: "Queued",
-}
-
-SMS_READ = {0: "Unread", 1: "Read"}
-
-SMS_STATUS = {-1: "None", 0: "Complete", 32: "Pending", 64: "Failed"}
 
 
 # Database initialization
@@ -103,23 +89,87 @@ class BaseModel(Model):
 
 
 class Protocols(BaseModel):
+    SMS_PROTOCOL = {0: "SMS"}
     protocol = IntegerField(unique=True, primary_key=True)
     description = TextField(null=True)
 
+    @classmethod
+    def iterate(cls):
+        for key, description in cls.SMS_PROTOCOL.items():
+            yield Protocols(protocol=key, description=description)
+
+    @classmethod
+    def get_or_none(cls, item):
+        super(Protocols, cls).get_or_none(protocol=item.protocol)
+
+    @classmethod
+    def create(cls, item):
+        super(Protocols, cls).create(protocol=item.protocol, description=item.description)
+
 
 class SmsTypes(BaseModel):
+    SMS_TYPE = {
+    1: "Received",
+    2: "Sent",
+    3: "Draft",
+    4: "Outbox",
+    5: "Failed",
+    6: "Queued",
+}
     type = IntegerField(unique=True, primary_key=True)
     description = TextField(null=True)
 
+    @classmethod
+    def iterate(cls):
+        for key, description in cls.SMS_TYPE.items():
+            yield SmsTypes(type=key, description=description)
+
+    @classmethod
+    def get_or_none(cls, item):
+        super(SmsTypes, cls).get_or_none(read=item.read)
+
+    @classmethod
+    def create(cls, item):
+        super(SmsTypes, cls).create(type=item.type, description=item.description)
+
 
 class SmsReadStatuses(BaseModel):
+    SMS_READ = {0: "Unread", 1: "Read"}
+
     read = IntegerField(unique=True, primary_key=True)
     description = TextField(null=True)
 
+    @classmethod
+    def iterate(cls):
+        for key, description in cls.SMS_READ.items():
+            yield SmsReadStatuses(read=key, description=description)
+
+    @classmethod
+    def get_or_none(cls, item):
+        super(SmsReadStatuses, cls).get_or_none(read=item.read)
+
+    @classmethod
+    def create(cls, item):
+        super(SmsReadStatuses, cls).create(read=item.read, description=item.description)
+
 
 class SmsStatuses(BaseModel):
+    SMS_STATUS = {-1: "None", 0: "Complete", 32: "Pending", 64: "Failed"}
     status = IntegerField(unique=True, primary_key=True)
     description = TextField(null=True)
+
+    @classmethod
+    def iterate(cls):
+        for key, description in cls.SMS_STATUS.items():
+            yield SmsStatuses(status=key, description=description)
+
+    @classmethod
+    def get_or_none(cls, item):
+        super(SmsStatuses, cls).get_or_none(status=item.status)
+
+    @classmethod
+    def create(cls, item):
+        super(SmsStatuses, cls).create(status=item.status, description=item.description)
 
 
 class Contacts(BaseModel):
@@ -203,21 +253,10 @@ class Database:
         self.db.connect()
 
         with self.db.atomic():
-            for p in get_protocols():
-                if not Protocols.get_or_none(protocol=p.protocol):
-                    Protocols.create(protocol=p.protocol, description=p.description)
-
-            for t in get_sms_types():
-                if not SmsTypes.get_or_none(type=t.type):
-                    SmsTypes.create(type=t.type, description=t.description)
-
-            for r in get_sms_read_statuses():
-                if not SmsReadStatuses.get_or_none(read=r.read):
-                    SmsReadStatuses.create(read=r.read, description=r.description)
-
-            for s in get_sms_statuses():
-                if not SmsStatuses.get_or_none(status=s.status):
-                    SmsStatuses.create(status=s.status, description=s.description)
+            for model in [Protocols, SmsTypes, SmsReadStatuses, SmsStatuses]:
+                for item in model.iterate():
+                    if not model.get_or_none(item):
+                        model.create(item)
 
         self.db.close()
 
@@ -268,42 +307,6 @@ class Database:
                 )
 
         self.db.close()
-
-
-def get_protocols() -> List[Protocols]:
-    protocols = []
-
-    for key in SMS_PROTOCOL.keys():
-        protocols.append(Protocol(protocol=key, description=SMS_PROTOCOL[key]))
-
-    return protocols
-
-
-def get_sms_types() -> List[SmsTypes]:
-    types = []
-
-    for key in SMS_TYPE.keys():
-        types.append(SmsTypes(type=key, description=SMS_TYPE[key]))
-
-    return types
-
-
-def get_sms_read_statuses() -> List[SmsReadStatuses]:
-    statuses = []
-
-    for key in SMS_READ.keys():
-        statuses.append(SmsReadStatuses(read=key, description=SMS_READ[key]))
-
-    return statuses
-
-
-def get_sms_statuses() -> List[SmsStatuses]:
-    statuses = []
-
-    for key in SMS_STATUS.keys():
-        statuses.append(SmsStatuses(status=key, description=SMS_STATUS[key]))
-
-    return statuses
 
 
 # Step 4: Parse the SMS Backup & Restore XML file
@@ -476,7 +479,7 @@ def main():
 
     elif parsed_args.rebuild:
         optimizer()
-        print(f"Successfully optimized the database.")
+        print("Successfully optimized the database.")
 
     elif parsed_args.xml_file:
         # Step 8: Parse the XML file
