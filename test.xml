@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!--File Created By SMS Backup & Restore v10.21.002 on 13/10/2024 00:57:36-->
+<!--
+
+To view this file in a more readable format, visit https://synctech.com.au/view-backup/
+
+-->
+<smses count="4" backup_set="daf2cd89-c949-4b13-bbd1-b8fa68c3ce89" backup_date="1728773844802" type="full">
+  <sms protocol="0" address="+421904941189" date="1364292015429" type="1" subject="null" body="SuPeeeer" toa="null" sc_toa="null" service_center="+421903333000" read="1" status="-1" locked="0" date_sent="1364295613000" sub_id="2" readable_date="Mar 26, 2013 11:00:15" contact_name="Lenka Urminská" />
+  <sms protocol="0" address="+421904941189" date="1364292015429" type="1" subject="null" body="SuPeeeer" toa="null" sc_toa="null" service_center="null" read="1" status="0" locked="0" date_sent="1364295613000" sub_id="2" readable_date="Mar 26, 2013 11:00:15" contact_name="Lenka Urminská" />
+  <sms protocol="0" address="+421904941189" date="1364295589806" type="2" subject="null" body="Ahoj, ano, uz vas tu cakam. :-) " toa="null" sc_toa="null" service_center="null" read="1" status="-1" locked="0" date_sent="0" sub_id="2" readable_date="Mar 26, 2013 11:59:49" contact_name="Lenka Urminská" />
+  <sms protocol="0" address="+421904941189" date="1364295589806" type="2" subject="null" body="Ahoj, ano, uz vas tu cakam. :-) " toa="null" sc_toa="null" service_center="null" read="1" status="0" locked="0" date_sent="0" sub_id="2" readable_date="Mar 26, 2013 11:59:49" contact_name="Lenka Urminská" />
+</smses>
