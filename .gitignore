@@ -164,6 +164,7 @@ cython_debug/
 ## mtool stuff
 # database files
 *.db
+*.db-*
 *.sqlite*
 
 # test inputs

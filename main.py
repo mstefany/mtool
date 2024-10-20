@@ -21,7 +21,6 @@ DB_FILE_PATH = "storage.db"
 TELEPHONE_NUMBER_REGEX = r"^\+?\d{9,}$"
 
 
-
 # Database initialization
 sqlite_db = SqliteExtDatabase(
     DB_FILE_PATH, pragmas={"journal_mode": "wal", "foreign_keys": 1}
@@ -104,18 +103,20 @@ class Protocols(BaseModel):
 
     @classmethod
     def create(cls, item):
-        super(Protocols, cls).create(protocol=item.protocol, description=item.description)
+        super(Protocols, cls).create(
+            protocol=item.protocol, description=item.description
+        )
 
 
 class SmsTypes(BaseModel):
     SMS_TYPE = {
-    1: "Received",
-    2: "Sent",
-    3: "Draft",
-    4: "Outbox",
-    5: "Failed",
-    6: "Queued",
-}
+        1: "Received",
+        2: "Sent",
+        3: "Draft",
+        4: "Outbox",
+        5: "Failed",
+        6: "Queued",
+    }
     type = IntegerField(unique=True, primary_key=True)
     description = TextField(null=True)
 
@@ -126,7 +127,7 @@ class SmsTypes(BaseModel):
 
     @classmethod
     def get_or_none(cls, item):
-        super(SmsTypes, cls).get_or_none(read=item.read)
+        super(SmsTypes, cls).get_or_none(type=item.type)
 
     @classmethod
     def create(cls, item):
@@ -271,13 +272,13 @@ class Database:
                     # there's no telephone number, but there might be contact already
                     contact, _ = Contacts.get_or_create(first=cnt.first, last=cnt.last)
 
-                    if cnt.prefix != "":
+                    if cnt.prefix != "" and contact.prefix == "":
                         contact.prefix = cnt.prefix
 
-                    if cnt.middle != "":
+                    if cnt.middle != "" and contact.middle == "":
                         contact.middle = cnt.middle
 
-                    if cnt.suffix != "":
+                    if cnt.suffix != "" and contact.suffix == "":
                         contact.suffix = cnt.suffix
 
                     contact.save()
