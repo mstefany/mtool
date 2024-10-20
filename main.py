@@ -20,20 +20,6 @@ DB_FILE_PATH = "storage.db"
 
 TELEPHONE_NUMBER_REGEX = r"^\+?\d{9,}$"
 
-SMS_PROTOCOL = {0: "SMS"}
-
-SMS_TYPE = {
-    1: "Received",
-    2: "Sent",
-    3: "Draft",
-    4: "Outbox",
-    5: "Failed",
-    6: "Queued",
-}
-
-SMS_READ = {0: "Unread", 1: "Read"}
-
-SMS_STATUS = {-1: "None", 0: "Complete", 32: "Pending", 64: "Failed"}
 
 
 # Database initialization
@@ -103,23 +89,87 @@ class BaseModel(Model):
 
 
 class Protocols(BaseModel):
+    SMS_PROTOCOL = {0: "SMS"}
     protocol = IntegerField(unique=True, primary_key=True)
     description = TextField(null=True)
 
+    @classmethod
+    def iterate(cls):
+        for key, description in cls.SMS_PROTOCOL.items():
+            yield Protocols(protocol=key, description=description)
+
+    @classmethod
+    def get_or_none(cls, item):
+        super(Protocols, cls).get_or_none(protocol=item.protocol)
+
+    @classmethod
+    def create(cls, item):
+        super(Protocols, cls).create(protocol=item.protocol, description=item.description)
+
 
 class SmsTypes(BaseModel):
+    SMS_TYPE = {
+    1: "Received",
+    2: "Sent",
+    3: "Draft",
+    4: "Outbox",
+    5: "Failed",
+    6: "Queued",
+}
     type = IntegerField(unique=True, primary_key=True)
     description = TextField(null=True)
 
+    @classmethod
+    def iterate(cls):
+        for key, description in cls.SMS_TYPE.items():
+            yield SmsTypes(type=key, description=description)
+
+    @classmethod
+    def get_or_none(cls, item):
+        super(SmsTypes, cls).get_or_none(read=item.read)
+
+    @classmethod
+    def create(cls, item):
+        super(SmsTypes, cls).create(type=item.type, description=item.description)
+
 
 class SmsReadStatuses(BaseModel):
+    SMS_READ = {0: "Unread", 1: "Read"}
+
     read = IntegerField(unique=True, primary_key=True)
     description = TextField(null=True)
 
+    @classmethod
+    def iterate(cls):
+        for key, description in cls.SMS_READ.items():
+            yield SmsReadStatuses(read=key, description=description)
+
+    @classmethod
+    def get_or_none(cls, item):
+        super(SmsReadStatuses, cls).get_or_none(read=item.read)
+
+    @classmethod
+    def create(cls, item):
+        super(SmsReadStatuses, cls).create(read=item.read, description=item.description)
+
 
 class SmsStatuses(BaseModel):
+    SMS_STATUS = {-1: "None", 0: "Complete", 32: "Pending", 64: "Failed"}
     status = IntegerField(unique=True, primary_key=True)
     description = TextField(null=True)
+
+    @classmethod
+    def iterate(cls):
+        for key, description in cls.SMS_STATUS.items():
+            yield SmsStatuses(status=key, description=description)
+
+    @classmethod
+    def get_or_none(cls, item):
+        super(SmsStatuses, cls).get_or_none(status=item.status)
+
+    @classmethod
+    def create(cls, item):
+        super(SmsStatuses, cls).create(status=item.status, description=item.description)
 
 
 class Contacts(BaseModel):
@@ -174,85 +224,89 @@ class SmsesIndexModel(FTSModel):
 
 
 # Step 3: Set up database and FTS table
-def setup_database():
-    """Create the SQLite database and FTS table using Peewee."""
-    sqlite_db.connect()
-    sqlite_db.create_tables(
-        [
-            Protocols,
-            SmsTypes,
-            SmsReadStatuses,
-            SmsStatuses,
-            Contacts,
-            TelephoneNumbers,
-            EmailAddresses,
-            Smses,
-            SmsesIndexModel,
-        ],
-        safe=True,
-    )
-    sqlite_db.close()
+class Database:
+    def __init__(self, db: SqliteExtDatabase):
+        self.db = db
 
+    def setup(self):
+        """Create the SQLite database and FTS table using Peewee."""
+        self.db.connect()
+        self.db.create_tables(
+            [
+                Protocols,
+                SmsTypes,
+                SmsReadStatuses,
+                SmsStatuses,
+                Contacts,
+                TelephoneNumbers,
+                EmailAddresses,
+                Smses,
+                SmsesIndexModel,
+            ],
+            safe=True,
+        )
+        self.db.close()
 
-def setup_known_metadata() -> None:
-    """Initialize some tables with known properties from SMS Backup & Restore"""
+    def setup_known_metadata(self) -> None:
+        """Initialize some tables with known properties from SMS Backup & Restore"""
 
-    sqlite_db.connect()
+        self.db.connect()
 
-    with sqlite_db.atomic():
-        for p in get_protocols():
-            if not Protocols.get_or_none(protocol=p.protocol):
-                Protocols.create(protocol=p.protocol, description=p.description)
+        with self.db.atomic():
+            for model in [Protocols, SmsTypes, SmsReadStatuses, SmsStatuses]:
+                for item in model.iterate():
+                    if not model.get_or_none(item):
+                        model.create(item)
 
-        for t in get_sms_types():
-            if not SmsTypes.get_or_none(type=t.type):
-                SmsTypes.create(type=t.type, description=t.description)
+        self.db.close()
 
-        for r in get_sms_read_statuses():
-            if not SmsReadStatuses.get_or_none(read=r.read):
-                SmsReadStatuses.create(read=r.read, description=r.description)
+    def save(self, messages: List[Message], contacts: List[Contact]):
+        """Save parsed SMS messages into the SQLite database."""
+        self.db.connect()
 
-        for s in get_sms_statuses():
-            if not SmsStatuses.get_or_none(status=s.status):
-                SmsStatuses.create(status=s.status, description=s.description)
+        for cnt in contacts:
+            with self.db.atomic():
+                # if not TelephoneNumbers.get_or_none(number=cnt.address):
+                if not TelephoneNumbers.get_or_none(number=cnt.address):
+                    # there's no telephone number, but there might be contact already
+                    contact, _ = Contacts.get_or_create(first=cnt.first, last=cnt.last)
 
-    sqlite_db.close()
+                    if cnt.prefix != "":
+                        contact.prefix = cnt.prefix
 
+                    if cnt.middle != "":
+                        contact.middle = cnt.middle
 
-def get_protocols() -> List[Protocols]:
-    protocols = []
+                    if cnt.suffix != "":
+                        contact.suffix = cnt.suffix
 
-    for key in SMS_PROTOCOL.keys():
-        protocols.append(Protocol(protocol=key, description=SMS_PROTOCOL[key]))
+                    contact.save()
 
-    return protocols
+                    TelephoneNumbers.create(number=cnt.address, owner=contact.id)
 
+        # Insert each message into the FTS table
+        with self.db.atomic():  # Wrap insertions in a transaction for performance
+            for msg in messages:
+                tn = TelephoneNumbers.select().where(
+                    TelephoneNumbers.number.contains(msg.address)
+                )
+                Smses.create(
+                    protocol=msg.protocol,
+                    address_original=msg.address,
+                    address=tn,
+                    epoch=msg.epoch,
+                    type=msg.type,
+                    subject=msg.subject,
+                    body=msg.body,
+                    service_center=msg.service_center,
+                    read=msg.read,
+                    status=msg.status,
+                    locked=msg.locked,
+                    epoch_sent=msg.epoch_sent,
+                    sub_id=msg.sub_id,
+                )
 
-def get_sms_types() -> List[SmsTypes]:
-    types = []
-
-    for key in SMS_TYPE.keys():
-        types.append(SmsTypes(type=key, description=SMS_TYPE[key]))
-
-    return types
-
-
-def get_sms_read_statuses() -> List[SmsReadStatuses]:
-    statuses = []
-
-    for key in SMS_READ.keys():
-        statuses.append(SmsReadStatuses(read=key, description=SMS_READ[key]))
-
-    return statuses
-
-
-def get_sms_statuses() -> List[SmsStatuses]:
-    statuses = []
-
-    for key in SMS_STATUS.keys():
-        statuses.append(SmsStatuses(status=key, description=SMS_STATUS[key]))
-
-    return statuses
+        self.db.close()
 
 
 # Step 4: Parse the SMS Backup & Restore XML file
@@ -312,56 +366,6 @@ def parse_sms_backup_and_restore_xml(file_path: str) -> List[Message]:
         )
 
     return messages
-
-
-# Step 5: Save parsed messages into the SQLite database using Peewee ORM
-def save_to_database(messages: List[Message], contacts: List[Contact]):
-    """Save parsed SMS messages into the SQLite database."""
-    sqlite_db.connect()
-
-    for cnt in contacts:
-        with sqlite_db.atomic():
-            # if not TelephoneNumbers.get_or_none(number=cnt.address):
-            if not TelephoneNumbers.get_or_none(number=cnt.address):
-                # there's no telephone number, but there might be contact already
-                contact, _ = Contacts.get_or_create(first=cnt.first, last=cnt.last)
-
-                if cnt.prefix != "":
-                    contact.prefix = cnt.prefix
-
-                if cnt.middle != "":
-                    contact.middle = cnt.middle
-
-                if cnt.suffix != "":
-                    contact.suffix = cnt.suffix
-
-                contact.save()
-
-                TelephoneNumbers.create(number=cnt.address, owner=contact.id)
-
-    # Insert each message into the FTS table
-    with sqlite_db.atomic():  # Wrap insertions in a transaction for performance
-        for msg in messages:
-            tn = TelephoneNumbers.select().where(
-                TelephoneNumbers.number.contains(msg.address)
-            )
-            Smses.create(
-                protocol=msg.protocol,
-                address_original=msg.address,
-                address=tn,
-                epoch=msg.epoch,
-                type=msg.type,
-                subject=msg.subject,
-                body=msg.body,
-                service_center=msg.service_center,
-                read=msg.read,
-                status=msg.status,
-                locked=msg.locked,
-                epoch_sent=msg.epoch_sent,
-                sub_id=msg.sub_id,
-            )
-
-    sqlite_db.close()
 
 
 def extract_contacts(messages: List[Message]) -> List[Contact]:
@@ -465,15 +469,17 @@ def main():
 
     parsed_args = parser.parse_args()
 
+    db = Database(sqlite_db)
+
     if parsed_args.initialize:
         # Step 7: Set up the database and create tables
-        setup_database()
-        setup_known_metadata()
-        print(f"Successfully setup the database.")
+        db.setup()
+        db.setup_known_metadata()
+        print("Successfully setup the database.")
 
     elif parsed_args.rebuild:
         optimizer()
-        print(f"Successfully optimized the database.")
+        print("Successfully optimized the database.")
 
     elif parsed_args.xml_file:
         # Step 8: Parse the XML file
@@ -481,7 +487,7 @@ def main():
         contacts = extract_contacts(messages)
 
         # Step 9: Save parsed messages into the SQLite database
-        save_to_database(messages, contacts)
+        db.save(messages, contacts)
 
         print(f"Successfully imported {len(messages)} messages into the database.")
 
